@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Episode Response Amplifier",
+        "description": "Use the same address, username and password as the amplifier web UI.",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "username": "Username",
+          "password": "Password"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter password",
+        "data": { "password": "Password" }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the amplifier",
+      "invalid_auth": "Login refused. Check the username and password."
+    },
+    "abort": {
+      "already_configured": "This amplifier is already configured",
+      "reauth_successful": "Password updated"
+    }
+  }
+}
