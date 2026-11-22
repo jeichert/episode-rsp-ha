@@ -19,7 +19,7 @@ import aiohttp
 _LOGGER = logging.getLogger(__name__)
 
 HEARTBEAT_INTERVAL = 5
-LOGIN_ATTEMPTS = 3
+LOGIN_OK_STATUSES = {200, 300}
 # 200 success; 700-702 are mode notices (standby, voltage trigger, audio)
 # the amp attaches to normal replies.
 OK_STATUSES = {200, 300, 700, 701, 702}
@@ -158,30 +158,18 @@ class EpisodeRspClient:
             "username": self._username,
             "password": self._password,
         }
-        status = None
         try:
-            # Status 300 means "repeat operation": the amp wants the login
-            # sent again (or another session holds the account). Retry a few
-            # times before giving up.
-            for attempt in range(LOGIN_ATTEMPTS):
-                msg = await self._exchange(login)
-                status = msg.get("status")
-                if status != 300:
-                    break
-                _LOGGER.debug("Login answered 300, retrying (%s)", attempt + 1)
-                await asyncio.sleep(1)
+            msg = await self._exchange(login)
         except RspError:
             await self._close()
             raise
-        if status != 200:
+        status = msg.get("status")
+        # The amp's own login page accepts both 200 and 300 ("repeat
+        # operation", i.e. already logged in) as success.
+        if status not in LOGIN_OK_STATUSES:
             await self._close()
             if status in AUTH_STATUSES:
                 raise RspAuthError(f"Login refused (status {status})")
-            if status == 300:
-                raise RspConnectionError(
-                    "Amp answered login with status 300 (repeat operation). "
-                    "Close other sessions to the amp, such as its web UI, and retry"
-                )
             raise RspCommandError("login", status)
 
     async def _close(self) -> None:
