@@ -23,6 +23,7 @@ STATE = {
     },
 }
 beats = 0
+retry_seen = False
 
 
 def reply():
@@ -30,7 +31,7 @@ def reply():
 
 
 async def ws_handler(request):
-    global beats
+    global beats, retry_seen
     ws = web.WebSocketResponse()
     await ws.prepare(request)
     logged = False
@@ -38,6 +39,13 @@ async def ws_handler(request):
         msg = json.loads(m.data)
         t = msg["type"]
         if t == "login":
+            if msg["username"] == "retry" and not retry_seen:
+                retry_seen = True
+                await ws.send_json({"type": "login", "status": 300})
+                continue
+            if msg["username"] == "busy":
+                await ws.send_json({"type": "login", "status": 300})
+                continue
             logged = msg["password"] == "good"
             await ws.send_json({"type": "login", "ovrc": "2", "status": 200 if logged else 400})
         elif t == "heartbeat_request":
@@ -66,6 +74,19 @@ async def main():
             raise SystemExit("expected auth error")
         except api.RspAuthError:
             print("auth error OK")
+
+        r = api.EpisodeRspClient(s, "127.0.0.1", 18081, "retry", "good")
+        assert len((await r.async_get_state())["zones"]) == 8
+        await r.async_close()
+        print("login 300 retry OK")
+
+        busy = api.EpisodeRspClient(s, "127.0.0.1", 18081, "busy", "good")
+        try:
+            await busy.async_get_state()
+            raise SystemExit("expected busy error")
+        except api.RspConnectionError as e:
+            assert "status 300" in str(e)
+        print("persistent 300 error OK")
 
         c = api.EpisodeRspClient(s, "127.0.0.1", 18081, "u", "good")
         pushed = []
